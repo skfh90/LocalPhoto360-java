@@ -25,9 +25,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
 import kotlin.math.atan
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 private val cameraBindLock = Any()
 private var cameraBindEpoch = 0
@@ -182,11 +183,13 @@ fun cameraHorizontalFov(cameraInfo: androidx.camera.core.CameraInfo): Float? {
 
 suspend fun ImageCapture.awaitBitmap(context: Context): Bitmap {
     awaitBound()
-    return suspendCoroutine { continuation ->
+    return suspendCancellableCoroutine { continuation ->
         takeBitmap(context) { result ->
-            result
-                .onSuccess { continuation.resume(it) }
-                .onFailure { continuation.resumeWithException(it) }
+            if (!continuation.isActive) return@takeBitmap
+            result.fold(
+                onSuccess = { continuation.resume(it) },
+                onFailure = { continuation.resumeWithException(it) },
+            )
         }
     }
 }
@@ -199,4 +202,15 @@ suspend fun ImageCapture.awaitBound(timeoutMs: Long = 4_000) {
         }
         delay(50)
     }
+}
+
+fun Throwable.captureErrorMessage(fallback: String): String? {
+    if (this is CancellationException || cause is CancellationException) return null
+    val text = message.orEmpty()
+    if (text.contains("coroutine scope left", ignoreCase = true)) return null
+    if (text.contains("StandaloneCoroutine was cancelled", ignoreCase = true)) return null
+    if (text.contains("not bound to a valid camera", ignoreCase = true)) {
+        return "Camera is still starting. Wait for the live preview, then try again."
+    }
+    return text.ifBlank { fallback }
 }

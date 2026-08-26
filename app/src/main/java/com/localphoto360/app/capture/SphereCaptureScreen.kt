@@ -44,7 +44,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,10 +56,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.localphoto360.app.appScope
 import com.localphoto360.app.photoRepository
 import com.localphoto360.app.ui.theme.Gold
 import com.localphoto360.app.ui.theme.Night
 import com.localphoto360.app.util.OrientationTracker
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -102,7 +104,11 @@ fun SphereCaptureScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var capturedTick by remember { mutableStateOf(0) }
     val matrix = remember { FloatArray(9) }
-    val scope = rememberCoroutineScope()
+    val screenAlive = remember { AtomicBoolean(true) }
+    DisposableEffect(Unit) {
+        screenAlive.set(true)
+        onDispose { screenAlive.set(false) }
+    }
 
     DisposableEffect(tracker) {
         tracker.start()
@@ -123,23 +129,28 @@ fun SphereCaptureScreen(
     val target = session.nearestOpen(yawRad, pitchRad)
     val aligned = target != null && session.isAligned(target, yawRad, pitchRad)
 
-    LaunchedEffect(aligned, capturing, stitching, capturedTick, cameraReady) {
+    LaunchedEffect(cameraReady, aligned, target?.index, capturedTick) {
         val ready = target ?: return@LaunchedEffect
-        if (!cameraReady || !aligned || capturing || stitching) return@LaunchedEffect
+        if (!cameraReady || !aligned || stitching) return@LaunchedEffect
         delay(400)
-        if (!ready.captured && imageCapture.camera != null) {
-                capturing = true
-                runCatching {
-                    val frame = imageCapture.awaitBitmap(context)
-                    val snap = FloatArray(9)
-                    tracker.copyRotationMatrix(snap)
-                    withContext(Dispatchers.Default) {
-                        session.capture(ready, frame, snap, hfov)
-                    }
-                }.onFailure { error = it.message ?: "Could not capture this view." }
-                capturing = false
-                if (ready.captured) capturedTick++
+        if (!isActive || ready.captured || stitching || imageCapture.camera == null) return@LaunchedEffect
+        capturing = true
+        try {
+            val frame = imageCapture.awaitBitmap(context)
+            if (!isActive || ready.captured) return@LaunchedEffect
+            val snap = FloatArray(9)
+            tracker.copyRotationMatrix(snap)
+            withContext(Dispatchers.Default) {
+                session.capture(ready, frame, snap, hfov)
             }
+            capturedTick++
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.captureErrorMessage("Could not capture this view.")
+        } finally {
+            capturing = false
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Night)) {
@@ -230,8 +241,8 @@ fun SphereCaptureScreen(
                     enabled = session.capturedCount >= 4 && !stitching,
                     onClick = {
                         stitching = true
-                        scope.launch {
-                            runCatching {
+                        context.appScope.launch {
+                            try {
                                 val bitmap = withContext(Dispatchers.Default) { session.composer.toBitmap() }
                                 val photo = withContext(Dispatchers.IO) {
                                     context.photoRepository.saveBitmap(
@@ -240,12 +251,15 @@ fun SphereCaptureScreen(
                                         photosphere = true,
                                     )
                                 }
-                                photo.id
-                            }.onSuccess(onFinished)
-                                .onFailure {
-                                    error = it.message ?: "Could not stitch the 360 photo."
+                                onFinished(photo.id)
+                            } catch (_: CancellationException) {
+                                if (screenAlive.get()) stitching = false
+                            } catch (failure: Exception) {
+                                if (screenAlive.get()) {
+                                    error = failure.captureErrorMessage("Could not stitch the 360 photo.")
                                     stitching = false
                                 }
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Night),

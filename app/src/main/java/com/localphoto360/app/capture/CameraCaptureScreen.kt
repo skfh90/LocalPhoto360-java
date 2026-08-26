@@ -34,10 +34,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,9 +47,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.localphoto360.app.appScope
 import com.localphoto360.app.photoRepository
 import com.localphoto360.app.ui.theme.Gold
 import com.localphoto360.app.ui.theme.Night
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -75,10 +78,14 @@ fun CameraCaptureScreen(
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
     }
-    val scope = rememberCoroutineScope()
     var capturing by remember { mutableStateOf(false) }
     var cameraReady by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val screenAlive = remember { AtomicBoolean(true) }
+    DisposableEffect(Unit) {
+        screenAlive.set(true)
+        onDispose { screenAlive.set(false) }
+    }
 
     Box(
         modifier = Modifier
@@ -166,8 +173,8 @@ fun CameraCaptureScreen(
                             .clickable(enabled = !capturing && cameraReady) {
                                 capturing = true
                                 error = null
-                                scope.launch {
-                                    runCatching {
+                                context.appScope.launch {
+                                    try {
                                         val bitmap = imageCapture.awaitBitmap(context)
                                         val photo = withContext(Dispatchers.IO) {
                                             context.photoRepository.saveBitmap(
@@ -176,10 +183,15 @@ fun CameraCaptureScreen(
                                                 photosphere = false,
                                             )
                                         }
-                                        photo.id
-                                    }.onSuccess(onCaptured)
-                                        .onFailure { error = it.message ?: "Capture failed." }
-                                    capturing = false
+                                        onCaptured(photo.id)
+                                    } catch (_: CancellationException) {
+                                        if (screenAlive.get()) capturing = false
+                                    } catch (failure: Exception) {
+                                        if (screenAlive.get()) {
+                                            error = failure.captureErrorMessage("Capture failed.")
+                                            capturing = false
+                                        }
+                                    }
                                 }
                             },
                     )
