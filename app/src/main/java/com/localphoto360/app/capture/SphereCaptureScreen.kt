@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,7 @@ import com.localphoto360.app.appScope
 import com.localphoto360.app.photoRepository
 import com.localphoto360.app.ui.theme.Gold
 import com.localphoto360.app.ui.theme.Night
+import com.localphoto360.app.util.EquirectangularMath
 import com.localphoto360.app.util.OrientationTracker
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -96,14 +99,16 @@ fun SphereCaptureScreen(
             .build()
     }
     var hfov by remember { mutableFloatStateOf(65f) }
-    var yawDeg by remember { mutableFloatStateOf(0f) }
-    var pitchDeg by remember { mutableFloatStateOf(0f) }
+    var sensorYawDeg by remember { mutableFloatStateOf(0f) }
+    var sensorPitchDeg by remember { mutableFloatStateOf(0f) }
+    var panYawDeg by remember { mutableFloatStateOf(0f) }
+    var panPitchDeg by remember { mutableFloatStateOf(0f) }
     var capturing by remember { mutableStateOf(false) }
     var cameraReady by remember { mutableStateOf(false) }
     var stitching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var capturedTick by remember { mutableStateOf(0) }
     val matrix = remember { FloatArray(9) }
+    val emulator = remember { isProbablyEmulator() }
     val screenAlive = remember { AtomicBoolean(true) }
     DisposableEffect(Unit) {
         screenAlive.set(true)
@@ -118,39 +123,62 @@ fun SphereCaptureScreen(
     LaunchedEffect(tracker) {
         while (isActive) {
             tracker.copyRotationMatrix(matrix)
-            yawDeg = PhotosphereSession.yawDegFromMatrix(matrix)
-            pitchDeg = PhotosphereSession.pitchDegFromMatrix(matrix)
+            sensorYawDeg = PhotosphereSession.yawDegFromMatrix(matrix)
+            sensorPitchDeg = PhotosphereSession.pitchDegFromMatrix(matrix)
             delay(33)
         }
     }
 
+    val yawDeg = EquirectangularMath.wrapDegrees(sensorYawDeg + panYawDeg)
+    val pitchDeg = (sensorPitchDeg + panPitchDeg).coerceIn(-80f, 80f)
     val yawRad = Math.toRadians(yawDeg.toDouble()).toFloat()
     val pitchRad = Math.toRadians(pitchDeg.toDouble()).toFloat()
     val target = session.nearestOpen(yawRad, pitchRad)
     val aligned = target != null && session.isAligned(target, yawRad, pitchRad)
+    val currentTarget = rememberUpdatedState(target)
+    val currentYaw = rememberUpdatedState(yawDeg)
+    val currentPitch = rememberUpdatedState(pitchDeg)
+    val currentHfov = rememberUpdatedState(hfov)
 
-    LaunchedEffect(cameraReady, aligned, target?.index, capturedTick) {
-        val ready = target ?: return@LaunchedEffect
-        if (!cameraReady || !aligned || stitching) return@LaunchedEffect
-        delay(400)
-        if (!isActive || ready.captured || stitching || imageCapture.camera == null) return@LaunchedEffect
+    fun aimAt(next: CaptureTarget) {
+        panYawDeg += session.headingOffsetDeg(yawDeg, next.yawDeg)
+        panPitchDeg += session.pitchOffsetDeg(pitchDeg, next.pitchDeg)
+    }
+
+    fun captureView(next: CaptureTarget) {
+        if (capturing || stitching || !cameraReady || next.captured) return
         capturing = true
-        try {
-            val frame = imageCapture.awaitBitmap(context)
-            if (!isActive || ready.captured) return@LaunchedEffect
-            val snap = FloatArray(9)
-            tracker.copyRotationMatrix(snap)
-            withContext(Dispatchers.Default) {
-                session.capture(ready, frame, snap, hfov)
+        error = null
+        context.appScope.launch {
+            try {
+                val frame = imageCapture.awaitBitmap(context)
+                val snap = EquirectangularMath.rotationMatrixFromYawPitch(
+                    Math.toRadians(currentYaw.value.toDouble()).toFloat(),
+                    Math.toRadians(currentPitch.value.toDouble()).toFloat(),
+                )
+                withContext(Dispatchers.Default) {
+                    session.capture(next, frame, snap, currentHfov.value)
+                }
+            } catch (_: CancellationException) {
+                // Leaving the screen cancels quietly.
+            } catch (failure: Exception) {
+                if (screenAlive.get()) {
+                    error = failure.captureErrorMessage("Could not capture this view.")
+                }
+            } finally {
+                if (screenAlive.get()) capturing = false
             }
-            capturedTick++
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            error = failure.captureErrorMessage("Could not capture this view.")
-        } finally {
-            capturing = false
         }
+    }
+
+    val autoTargetIndex = if (!emulator && cameraReady && aligned && target != null && !stitching) target.index else -1
+    LaunchedEffect(autoTargetIndex) {
+        if (autoTargetIndex < 0) return@LaunchedEffect
+        val ready = currentTarget.value ?: return@LaunchedEffect
+        if (ready.captured) return@LaunchedEffect
+        delay(900)
+        if (!isActive || ready.captured) return@LaunchedEffect
+        captureView(ready)
     }
 
     Box(Modifier.fillMaxSize().background(Night)) {
@@ -223,7 +251,7 @@ fun SphereCaptureScreen(
                     !cameraReady -> "Starting camera…"
                     stitching -> "Stitching your photosphere…"
                     capturing -> "Hold still…"
-                    aligned -> "Locked on target"
+                    aligned -> "Locked on target — tap Capture this view"
                     target != null -> guidanceText(session, yawDeg, pitchDeg, target)
                     else -> "All views captured. Stitch when you are ready."
                 },
@@ -231,15 +259,61 @@ fun SphereCaptureScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
             )
+            if (emulator) {
+                Text(
+                    "Emulator: the phone does not rotate by itself. Use Next target or the turn buttons below. Extended controls → Virtual sensors also work.",
+                    color = Color(0xCCFFFFFF),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(
+                    onClick = { panYawDeg -= 45f },
+                    enabled = !capturing && !stitching,
+                ) { Text("◀ 45°") }
+                FilledTonalButton(
+                    onClick = {
+                        target?.let(::aimAt)
+                    },
+                    enabled = target != null && !capturing && !stitching,
+                ) { Text("Next target") }
+                FilledTonalButton(
+                    onClick = { panYawDeg += 45f },
+                    enabled = !capturing && !stitching,
+                ) { Text("45° ▶") }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(
+                    onClick = { panPitchDeg = (panPitchDeg + 20f).coerceAtMost(80f) },
+                    enabled = !capturing && !stitching,
+                ) { Text("Tilt up") }
+                FilledTonalButton(
+                    onClick = { panPitchDeg = (panPitchDeg - 20f).coerceAtLeast(-80f) },
+                    enabled = !capturing && !stitching,
+                ) { Text("Tilt down") }
+            }
+            Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FilledTonalButton(onClick = onBack, enabled = !stitching) { Text("Cancel") }
                 Button(
-                    enabled = session.capturedCount >= 4 && !stitching,
-                    onClick = {
+                    enabled = cameraReady && !capturing && !stitching && target != null,
+                    onClick = { target?.let(::captureView) },
+                ) {
+                    Icon(Icons.Outlined.CameraAlt, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                    Text("Capture this view")
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                enabled = session.capturedCount >= 4 && !stitching,
+                onClick = {
                         stitching = true
                         context.appScope.launch {
                             try {
@@ -271,7 +345,6 @@ fun SphereCaptureScreen(
                         Text(if (session.capturedCount >= session.totalCount) "Stitch 360" else "Stitch early")
                     }
                 }
-            }
         }
     }
 }

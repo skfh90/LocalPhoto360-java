@@ -42,6 +42,36 @@ For the cleanest sphere, pivot around a single point, keep the phone upright, an
 
 Imported images that are roughly **2:1** (typical equirectangular) are tagged as photospheres. Other photos still open in the viewer, stretched across the sphere.
 
+## 360 capture in the Android Emulator
+
+The emulator does **not** turn like a real phone, so **Locked on target** / **Hold still…** will sit on the first heading until you move the virtual camera. Use the on-screen aim controls (recommended) or the emulator’s virtual sensors.
+
+### Option A — on-screen controls (easiest)
+
+1. Create an AVD with a **camera**: AVD Manager → your device → **Show Advanced Settings** → **Camera** → `VirtualScene` or `Webcam`.
+2. Run LocalPhoto360 and grant camera permission.
+3. Open the camera screen → **360 capture**.
+4. Wait until the live preview is showing (not “Starting camera…”).
+5. If a gold ring is already in the crosshair, tap **Capture this view**. The top dots show which headings are filled.
+6. Tap **Next target**. That jumps the aiming compass to the next empty heading (you are faking a turn).
+7. Tap **Capture this view** again.
+8. Repeat until at least **4 views** are filled (more views = fuller sphere). Use **◀ 45°** / **45° ▶** and **Tilt up** / **Tilt down** if you want to aim by hand.
+9. Tap **Stitch early** (or **Stitch 360** when every target is filled).
+10. The photosphere opens in the 360 viewer. Drag to look around.
+
+The emulator camera picture is often a still virtual room. The stitch still maps each shot onto a different part of the sphere because **Next target** changes the virtual heading, not because the webcam view changes.
+
+### Option B — Extended controls → Virtual sensors
+
+1. With the emulator running, click **…** (Extended controls).
+2. Open **Virtual sensors**.
+3. Choose **Move** / **Rotate** and slowly yaw the device 360°, then pitch up and down. Pause ~1 second on each pose.
+4. On a **physical phone** the app auto-captures when you are locked on a target. In the emulator, still tap **Capture this view** after each pose (auto-capture is disabled on emulators to avoid the Hold still / Locked blinking).
+
+### Option C — skip capture and use the sample
+
+The gallery already includes **Sample photosphere**. Open it to verify the 360 viewer without capturing.
+
 ## Project layout
 
 ```

@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import kotlin.math.asin
+import kotlin.math.atan2
 
 class EquirectangularMathTest {
 
@@ -40,5 +42,14 @@ class EquirectangularMathTest {
     fun oppositeLooksArePiApart() {
         val distance = EquirectangularMath.angularDistanceRad(0f, 0f, Math.PI.toFloat(), 0f)
         assertTrue(abs(distance - Math.PI.toFloat()) < 0.01f)
+    }
+
+    @Test
+    fun rotationMatrixMatchesYawPitch() {
+        val yaw = Math.toRadians(90.0).toFloat()
+        val pitch = Math.toRadians(20.0).toFloat()
+        val matrix = EquirectangularMath.rotationMatrixFromYawPitch(yaw, pitch)
+        assertEquals(yaw.toDouble(), atan2(matrix[2], matrix[8]).toDouble(), 0.02)
+        assertEquals(pitch.toDouble(), asin(matrix[5].coerceIn(-1f, 1f)).toDouble(), 0.02)
     }
 }

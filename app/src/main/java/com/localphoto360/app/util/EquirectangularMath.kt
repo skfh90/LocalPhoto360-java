@@ -58,4 +58,35 @@ object EquirectangularMath {
         if (deg < 0f) deg += 360f
         return deg
     }
+
+    fun rotationMatrixFromYawPitch(
+        yawRad: Float,
+        pitchRad: Float,
+        out: FloatArray = FloatArray(9),
+    ): FloatArray {
+        val look = yawPitchToLook(yawRad, pitchRad)
+        val lookX = look[0]
+        val lookY = look[1]
+        val lookZ = look[2]
+        var rightX = lookZ
+        var rightY = 0f
+        var rightZ = -lookX
+        val rightLen = sqrt(rightX * rightX + rightZ * rightZ).coerceAtLeast(1e-6f)
+        rightX /= rightLen
+        rightZ /= rightLen
+        val upX = rightY * lookZ - rightZ * lookY
+        val upY = rightZ * lookX - rightX * lookZ
+        val upZ = rightX * lookY - rightY * lookX
+        val upLen = sqrt(upX * upX + upY * upY + upZ * upZ).coerceAtLeast(1e-6f)
+        out[0] = rightX
+        out[1] = upX / upLen
+        out[2] = lookX
+        out[3] = rightY
+        out[4] = upY / upLen
+        out[5] = lookY
+        out[6] = rightZ
+        out[7] = upZ / upLen
+        out[8] = lookZ
+        return out
+    }
 }
