@@ -77,6 +77,7 @@ fun CameraCaptureScreen(
     }
     val scope = rememberCoroutineScope()
     var capturing by remember { mutableStateOf(false) }
+    var cameraReady by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     Box(
@@ -92,7 +93,11 @@ fun CameraCaptureScreen(
             return
         }
 
-        CameraPreview(modifier = Modifier.fillMaxSize(), imageCapture = imageCapture)
+        CameraPreview(
+            modifier = Modifier.fillMaxSize(),
+            imageCapture = imageCapture,
+            onReady = { cameraReady = it },
+        )
 
         Row(
             modifier = Modifier
@@ -134,12 +139,20 @@ fun CameraCaptureScreen(
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp))
             }
+            if (!cameraReady && error == null) {
+                Text(
+                    "Starting camera…",
+                    color = Color(0xCCFFFFFF),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
             Box(
                 modifier = Modifier
                     .size(84.dp)
                     .clip(CircleShape)
                     .border(4.dp, Gold, CircleShape)
-                    .background(if (capturing) Color(0x66FFFFFF) else Color.White),
+                    .background(if (capturing || !cameraReady) Color(0x66FFFFFF) else Color.White),
                 contentAlignment = Alignment.Center,
             ) {
                 if (capturing) {
@@ -149,8 +162,8 @@ fun CameraCaptureScreen(
                         Modifier
                             .size(68.dp)
                             .clip(CircleShape)
-                            .background(Color.White)
-                            .clickable(enabled = !capturing) {
+                            .background(if (cameraReady) Color.White else Color(0x66FFFFFF))
+                            .clickable(enabled = !capturing && cameraReady) {
                                 capturing = true
                                 error = null
                                 scope.launch {

@@ -97,6 +97,7 @@ fun SphereCaptureScreen(
     var yawDeg by remember { mutableFloatStateOf(0f) }
     var pitchDeg by remember { mutableFloatStateOf(0f) }
     var capturing by remember { mutableStateOf(false) }
+    var cameraReady by remember { mutableStateOf(false) }
     var stitching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var capturedTick by remember { mutableStateOf(0) }
@@ -122,11 +123,11 @@ fun SphereCaptureScreen(
     val target = session.nearestOpen(yawRad, pitchRad)
     val aligned = target != null && session.isAligned(target, yawRad, pitchRad)
 
-    LaunchedEffect(aligned, capturing, stitching, capturedTick) {
+    LaunchedEffect(aligned, capturing, stitching, capturedTick, cameraReady) {
         val ready = target ?: return@LaunchedEffect
-        if (!aligned || capturing || stitching) return@LaunchedEffect
-        delay(280)
-        if (!ready.captured) {
+        if (!cameraReady || !aligned || capturing || stitching) return@LaunchedEffect
+        delay(400)
+        if (!ready.captured && imageCapture.camera != null) {
                 capturing = true
                 runCatching {
                     val frame = imageCapture.awaitBitmap(context)
@@ -137,7 +138,7 @@ fun SphereCaptureScreen(
                     }
                 }.onFailure { error = it.message ?: "Could not capture this view." }
                 capturing = false
-                capturedTick++
+                if (ready.captured) capturedTick++
             }
     }
 
@@ -158,6 +159,7 @@ fun SphereCaptureScreen(
         CameraPreview(
             modifier = Modifier.fillMaxSize(),
             imageCapture = imageCapture,
+            onReady = { cameraReady = it },
             onHorizontalFov = { hfov = it },
         )
 
@@ -207,6 +209,7 @@ fun SphereCaptureScreen(
             Spacer(Modifier.height(12.dp))
             Text(
                 when {
+                    !cameraReady -> "Starting camera…"
                     stitching -> "Stitching your photosphere…"
                     capturing -> "Hold still…"
                     aligned -> "Locked on target"

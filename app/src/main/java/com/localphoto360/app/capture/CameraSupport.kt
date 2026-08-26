@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.hardware.camera2.CameraCharacteristics
+import android.os.SystemClock
 import android.util.SizeF
 import android.view.ViewGroup
 import androidx.camera.camera2.interop.Camera2CameraInfo
@@ -16,7 +17,6 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,12 +27,16 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.atan
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.delay
+
+private val cameraBindLock = Any()
+private var cameraBindEpoch = 0
 
 @Composable
 fun CameraPreview(
     modifier: Modifier = Modifier,
     imageCapture: ImageCapture,
+    onReady: (Boolean) -> Unit = {},
     onHorizontalFov: (Float) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -48,46 +52,92 @@ fun CameraPreview(
         }
     }
 
-    LaunchedEffect(imageCapture) {
-        val provider = context.cameraProvider()
-        provider.unbindAll()
-        val preview = Preview.Builder().build().also { useCase ->
-            useCase.surfaceProvider = previewView.surfaceProvider
-        }
-        val camera = provider.bindToLifecycle(
-            lifecycleOwner,
-            CameraSelector.DEFAULT_BACK_CAMERA,
-            preview,
-            imageCapture,
-        )
-        onHorizontalFov(cameraHorizontalFov(camera.cameraInfo) ?: 65f)
-    }
+    DisposableEffect(lifecycleOwner, imageCapture, previewView) {
+        var cancelled = false
+        var boundEpoch = -1
+        var boundPreview: Preview? = null
+        val executor = ContextCompat.getMainExecutor(context)
+        val future = ProcessCameraProvider.getInstance(context)
 
-    DisposableEffect(Unit) {
+        fun releaseIfCurrent(provider: ProcessCameraProvider, preview: Preview?) {
+            synchronized(cameraBindLock) {
+                if (boundEpoch != cameraBindEpoch) return
+                runCatching {
+                    if (preview != null) provider.unbind(preview, imageCapture) else provider.unbind(imageCapture)
+                }
+            }
+        }
+
+        future.addListener(
+            {
+                val provider = runCatching { future.get() }.getOrNull() ?: return@addListener
+                val startBind = Runnable {
+                    var ready = false
+                    var fov = 65f
+                    synchronized(cameraBindLock) {
+                        if (cancelled) return@Runnable
+                        val epoch = ++cameraBindEpoch
+                        boundEpoch = epoch
+                        provider.unbindAll()
+                        val preview = Preview.Builder().build().also { useCase ->
+                            useCase.surfaceProvider = previewView.surfaceProvider
+                        }
+                        boundPreview = preview
+                        val selector = when {
+                            provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) ->
+                                CameraSelector.DEFAULT_BACK_CAMERA
+                            provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) ->
+                                CameraSelector.DEFAULT_FRONT_CAMERA
+                            else -> return@Runnable
+                        }
+                        val camera = runCatching {
+                            provider.bindToLifecycle(
+                                lifecycleOwner,
+                                selector,
+                                preview,
+                                imageCapture,
+                            )
+                        }.getOrNull()
+                        if (camera == null || cancelled || boundEpoch != cameraBindEpoch) {
+                            releaseIfCurrent(provider, preview)
+                            return@Runnable
+                        }
+                        previewView.display?.rotation?.let { imageCapture.targetRotation = it }
+                        fov = cameraHorizontalFov(camera.cameraInfo) ?: 65f
+                        ready = true
+                    }
+                    if (ready) {
+                        onHorizontalFov(fov)
+                        onReady(true)
+                    } else {
+                        onReady(false)
+                    }
+                }
+                if (previewView.isAttachedToWindow) startBind.run() else previewView.post(startBind)
+            },
+            executor,
+        )
+
         onDispose {
-            val future = ProcessCameraProvider.getInstance(context)
-            future.addListener(
-                { future.get().unbindAll() },
-                ContextCompat.getMainExecutor(context),
-            )
+            cancelled = true
+            onReady(false)
+            val provider = if (future.isDone) runCatching { future.get() }.getOrNull() else null
+            if (provider != null) {
+                releaseIfCurrent(provider, boundPreview)
+            } else {
+                future.addListener(
+                    {
+                        val ready = runCatching { future.get() }.getOrNull() ?: return@addListener
+                        releaseIfCurrent(ready, boundPreview)
+                    },
+                    executor,
+                )
+            }
         }
     }
 
     AndroidView(factory = { previewView }, modifier = modifier)
 }
-
-suspend fun Context.cameraProvider(): ProcessCameraProvider =
-    suspendCancellableCoroutine { continuation ->
-        val future = ProcessCameraProvider.getInstance(this)
-        future.addListener(
-            {
-                runCatching { future.get() }
-                    .onSuccess { continuation.resume(it) }
-                    .onFailure { continuation.resumeWithException(it) }
-            },
-            ContextCompat.getMainExecutor(this),
-        )
-    }
 
 fun ImageCapture.takeBitmap(
     context: Context,
@@ -130,11 +180,23 @@ fun cameraHorizontalFov(cameraInfo: androidx.camera.core.CameraInfo): Float? {
     }.getOrNull()
 }
 
-suspend fun ImageCapture.awaitBitmap(context: Context): Bitmap =
-    suspendCoroutine { continuation ->
+suspend fun ImageCapture.awaitBitmap(context: Context): Bitmap {
+    awaitBound()
+    return suspendCoroutine { continuation ->
         takeBitmap(context) { result ->
             result
                 .onSuccess { continuation.resume(it) }
                 .onFailure { continuation.resumeWithException(it) }
         }
     }
+}
+
+suspend fun ImageCapture.awaitBound(timeoutMs: Long = 4_000) {
+    val start = SystemClock.elapsedRealtime()
+    while (camera == null) {
+        if (SystemClock.elapsedRealtime() - start > timeoutMs) {
+            error("Camera is still starting. Wait for the live preview, then try again.")
+        }
+        delay(50)
+    }
+}
