@@ -1,4 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LocalPhoto360</string>
+    <string name="gallery_subtitle">Camera capture and a local 360 viewer</string>
+    <string name="import_photo">Import a 360 image</string>
+    <string name="capture">Capture</string>
+    <string name="back">Back</string>
+    <string name="still_photo">Still photo</string>
+    <string name="still_hint">Snap a frame, or switch to 360 capture to paint a photosphere by turning in place.</string>
+    <string name="sphere_capture">360 capture</string>
+    <string name="allow_camera">Allow camera</string>
+    <string name="not_now">Not now</string>
+    <string name="camera_required">Camera access is required</string>
+    <string name="camera_required_body">LocalPhoto360 uses the camera to take stills and to capture overlapping frames for a 360 photosphere. Photos stay on this device.</string>
+    <string name="starting_camera">Starting camera…</string>
+    <string name="hold_still">Hold still…</string>
+    <string name="locked_on_target">Locked on target — hold still</string>
+    <string name="locked_on_target_tap">Locked on target — tap Capture this view</string>
+    <string name="stitching">Stitching your photosphere…</string>
+    <string name="all_views">All views captured. Stitch when you are ready.</string>
+    <string name="next_target">Next target</string>
+    <string name="tilt_up">Tilt up</string>
+    <string name="tilt_down">Tilt down</string>
+    <string name="capture_this_view">Capture this view</string>
+    <string name="cancel">Cancel</string>
+    <string name="stitch_early">Stitch early</string>
+    <string name="stitch_360">Stitch 360</string>
+    <string name="emulator_help">Emulator: the phone does not rotate by itself. Use Next target or the turn buttons. Extended controls → Virtual sensors also work.</string>
+    <string name="share">Share</string>
+    <string name="delete">Delete</string>
+    <string name="gyro_on">Gyroscope look</string>
+    <string name="gyro_off">Drag to look · pinch to zoom</string>
+    <string name="delete_title">Delete this photo?</string>
+    <string name="delete_body">It will be removed from LocalPhoto360 on this device.</string>
+    <string name="keep">Keep</string>
+    <string name="regular_photo_hint">This is a regular photo mapped onto a sphere. Capture a 360 or import an equirectangular image for a true photosphere.</string>
+    <string name="sample_subtitle">Built-in demo sphere</string>
+    <string name="badge_360">360</string>
+    <string name="badge_photo">Photo</string>
+    <string name="turn_left_45">◀ 45°</string>
+    <string name="turn_right_45">45° ▶</string>
+    <string name="coverage_format">%1$d of %2$d views  ·  %3$d%% coverage</string>
 </resources>

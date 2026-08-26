@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="night">#12100C</color>
+    <color name="night_elevated">#1C1914</color>
+    <color name="gold">#F4C95D</color>
+    <color name="cream">#F6F0E4</color>
+    <color name="muted">#B7A98E</color>
+    <color name="danger">#E26D5A</color>
+    <color name="ic_launcher_background">#12100C</color>
+    <color name="overlay">#99000000</color>
+</resources>

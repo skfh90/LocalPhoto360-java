@@ -17,16 +17,26 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.LocalPhoto360">
         <activity
-            android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:name=".gallery.GalleryActivity"
             android:exported="true"
-            android:theme="@style/Theme.LocalPhoto360"
-            android:windowSoftInputMode="adjustResize">
+            android:theme="@style/Theme.LocalPhoto360">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".capture.CameraActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".capture.SphereCaptureActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".viewer.ViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
