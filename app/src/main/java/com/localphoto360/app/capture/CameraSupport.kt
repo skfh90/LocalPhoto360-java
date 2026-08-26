@@ -7,7 +7,6 @@ import android.hardware.camera2.CameraCharacteristics
 import android.util.SizeF
 import android.view.ViewGroup
 import androidx.camera.camera2.interop.Camera2CameraInfo
-import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -120,7 +119,6 @@ fun ImageProxy.toRotatedBitmap(): Bitmap {
     return rotated
 }
 
-@OptIn(ExperimentalCamera2Interop::class)
 fun cameraHorizontalFov(cameraInfo: androidx.camera.core.CameraInfo): Float? {
     return runCatching {
         val info = Camera2CameraInfo.from(cameraInfo)

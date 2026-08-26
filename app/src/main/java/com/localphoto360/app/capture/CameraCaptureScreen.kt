@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Cameraswitch
-import androidx.compose.material.icons.outlined.ThreeSixty
+import androidx.compose.material.icons.outlined.PanoramaPhotosphere
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -106,7 +106,7 @@ fun CameraCaptureScreen(
             }
             Spacer(Modifier.weight(1f))
             FilledTonalButton(onClick = onOpenSphereCapture) {
-                Icon(Icons.Outlined.ThreeSixty, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Icon(Icons.Outlined.PanoramaPhotosphere, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                 Text("360 capture")
             }
         }

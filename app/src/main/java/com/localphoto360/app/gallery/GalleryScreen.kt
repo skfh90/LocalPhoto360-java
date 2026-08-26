@@ -26,7 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.ThreeSixty
+import androidx.compose.material.icons.outlined.PanoramaPhotosphere
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -209,7 +209,7 @@ private fun PhotoCard(photo: SpherePhoto, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Icon(
-                    Icons.Outlined.ThreeSixty,
+                    Icons.Outlined.PanoramaPhotosphere,
                     contentDescription = null,
                     tint = Gold,
                     modifier = Modifier.size(14.dp),

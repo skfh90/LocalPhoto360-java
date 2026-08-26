@@ -123,10 +123,10 @@ fun SphereCaptureScreen(
     val aligned = target != null && session.isAligned(target, yawRad, pitchRad)
 
     LaunchedEffect(aligned, capturing, stitching, capturedTick) {
-        val ready = target
-        if (aligned && ready != null && !capturing && !stitching) {
-            delay(280)
-            if (!ready.captured) {
+        val ready = target ?: return@LaunchedEffect
+        if (!aligned || capturing || stitching) return@LaunchedEffect
+        delay(280)
+        if (!ready.captured) {
                 capturing = true
                 runCatching {
                     val frame = imageCapture.awaitBitmap(context)
@@ -139,7 +139,6 @@ fun SphereCaptureScreen(
                 capturing = false
                 capturedTick++
             }
-        }
     }
 
     Box(Modifier.fillMaxSize().background(Night)) {
