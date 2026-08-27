@@ -5,7 +5,7 @@
   or only delete Gradle junk (daemons, old versions, transform caches).
 
 .EXAMPLE
-  # After downloading gradle-user-home.zip.00 .. .12 next to this script:
+  # Parts live in offline\gradle-user-home\ after cloning the repo:
   powershell -ExecutionPolicy Bypass -File .\tools\install-offline-gradle.ps1
 
 .EXAMPLE
@@ -69,9 +69,11 @@ function Remove-GradleJunk {
 
 function Find-PartsDir {
     if ($PartsDir -and (Test-Path $PartsDir)) { return $PartsDir }
+    $repoRoot = Join-Path (Split-Path -Parent $PSCommandPath) ".."
     $candidates = @(
+        (Join-Path $repoRoot "offline\gradle-user-home"),
         (Split-Path -Parent $PSCommandPath),
-        (Join-Path (Split-Path -Parent $PSCommandPath) ".."),
+        $repoRoot,
         (Get-Location).Path,
         (Join-Path $env:USERPROFILE "Downloads")
     )

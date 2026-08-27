@@ -19,7 +19,7 @@ Requires **JDK 17+**. Camera needs a device or emulator with a camera.
 
 This repo does not need Kotlin or Compose. A typical `%USERPROFILE%\.gradle` folder is full of **daemons, native binaries, old Gradle versions, and AAR transform caches** that this app does not need.
 
-A trimmed Gradle user home is attached as split zip parts (`gradle-user-home.zip.00` … `.12`). It contains only:
+A trimmed Gradle user home is in **`offline/gradle-user-home/`** as split zip parts (`gradle-user-home.zip.00` … `.12`). It contains only:
 
 - `wrapper\dists\gradle-8.9-bin\` — Gradle **8.9** (the wrapper zip)
 - `caches\modules-2\` — Maven artifacts for this Java app (CameraX, AppCompat, Material, AGP 8.7.3)
@@ -27,8 +27,8 @@ A trimmed Gradle user home is attached as split zip parts (`gradle-user-home.zip
 **Install (replace the bloated folder):**
 
 1. Close Android Studio.
-2. Download every `gradle-user-home.zip.*` part into one folder (for example Downloads, or this repo).
-3. From PowerShell:
+2. Clone or copy this repo (the zip parts are already under `offline/gradle-user-home/`).
+3. From PowerShell in the repo root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\install-offline-gradle.ps1
