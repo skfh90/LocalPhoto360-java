@@ -15,6 +15,43 @@ A debug APK is also copied to **`LocalPhoto360-debug.apk`** at the repo root aft
 
 Requires **JDK 17+**. Camera needs a device or emulator with a camera.
 
+## Offline Windows PC (`C:\Users\1-PYC\.gradle`)
+
+This repo does not need Kotlin or Compose. A typical `%USERPROFILE%\.gradle` folder is full of **daemons, native binaries, old Gradle versions, and AAR transform caches** that this app does not need.
+
+A trimmed Gradle user home is attached as split zip parts (`gradle-user-home.zip.00` … `.12`). It contains only:
+
+- `wrapper\dists\gradle-8.9-bin\` — Gradle **8.9** (the wrapper zip)
+- `caches\modules-2\` — Maven artifacts for this Java app (CameraX, AppCompat, Material, AGP 8.7.3)
+
+**Install (replace the bloated folder):**
+
+1. Close Android Studio.
+2. Download every `gradle-user-home.zip.*` part into one folder (for example Downloads, or this repo).
+3. From PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install-offline-gradle.ps1
+```
+
+That renames `C:\Users\1-PYC\.gradle` to a timestamped backup and extracts the trimmed cache.
+
+**Or only delete junk, keep your existing caches:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install-offline-gradle.ps1 -CleanOnly
+```
+
+That removes `daemon`, `native`, `notifications`, `workers`, `kotlin-profile`, `caches\8.*` transforms, and unused Gradle distributions. It keeps `caches\modules-2` and `gradle-8.9-bin`.
+
+Then build with no network:
+
+```bat
+gradlew --offline assembleDebug
+```
+
+You still need **JDK 17+** and **Android SDK Platform 35** on that PC. The Gradle cache is not a substitute for the SDK.
+
 ## What you can do
 
 - Gallery of local photos (bundled sample photosphere plus anything you capture or import)

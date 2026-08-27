@@ -17,3 +17,5 @@
 .kotlin
 /tools/__pycache__
 /agent-tools
+gradle/wrapper/*.zip
+/gradle-user-home.zip
